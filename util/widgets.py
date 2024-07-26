@@ -121,6 +121,13 @@ def generate_ymd(delta: int = 0):
     return ymd
 
 
+def generate_ymd_HMS():
+    import time
+
+    ymd_HMS = time.strftime('%Y-%m-%D %H:%M:%S', time.localtime())
+    return ymd_HMS
+
+
 def generate_i():
     from datetime import datetime, timedelta
 

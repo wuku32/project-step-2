@@ -24,15 +24,25 @@ data = {
     'imageSearchType': '1'
 }
 
-from util.widgets import generate_ym, generate_ymd, generate_i
+import os
+
+from util.widgets import generate_ym, generate_ymd, generate_ymd_HMS, generate_i
 
 ym = generate_ym()
 g = 'cargohose_herren'
 bd = f'{g}/{ym}'
+bd_a = f'{bd}/a'
 b_d = f'{g}_{ym}'
 
+os.makedirs(bd, exist_ok=True)
+os.makedirs(bd_a, exist_ok=True)
+
 ymd = generate_ymd()
+ymd_HMS = generate_ymd_HMS()
 i = '(08-09)'
+bd_a_img = f'{bd_a}/{ymd}'
+os.makedirs(bd_a_img, exist_ok=True)
+
 bd_IMG = f'{bd}/{ymd}_{i}'
 
 os.makedirs(bd, exist_ok=True)
@@ -63,6 +73,8 @@ for sf in sfs:
                 'fp': fp,
                 'imageUrl': item['imageUrl'],
                 'productSku': item['productSku'],
+                'amazon_psku': '',
+                'note': '',
                 'productLabelList': item['productLabelList'],
                 'categoryName': item['categoryName'],
                 'warehouseName': item['warehouseName'],
@@ -101,8 +113,9 @@ for sf in sfs:
 
         from util.widgets import Status
 
-        new_df['status'] = Status.UNUSED.value
         new_df['ymd'] = ymd
+        new_df['status'] = Status.UNUSED.value
+        new_df['ymd_HMS'] = ''
 
         df = pd.concat([ori_df, new_df], axis=0, ignore_index=True)
 
