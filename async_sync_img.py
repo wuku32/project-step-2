@@ -22,13 +22,13 @@ os.makedirs(bd, exist_ok=True)
 os.makedirs(bd_a, exist_ok=True)
 
 ymd = generate_ymd()
-i = '(08-09)'
+# i = '(08-09)'
 bd_a_img = f'{bd_a}/{ymd}'
 bd_a_log = f'{bd_a}/log'
 os.makedirs(bd_a_img, exist_ok=True)
 os.makedirs(bd_a_log, exist_ok=True)
 
-erp_df: DataFrame = pd.read_excel(f'{bd_a}/product_20240724051948185.xls')
+erp_df: DataFrame = pd.read_excel(f'{bd_a}/product_20240729110524847_verified.xls')
 
 # 如果没有图片链接,说明已下架或者还没更新
 erp_df.dropna(subset=['图片链接 1'], inplace=True)
@@ -59,7 +59,7 @@ src_unique_df['fn'] = src_unique_df[0].apply(lambda i: i.rsplit('/', 1)[-1])
 
 import logging
 import aiohttp
-from aiohttp.client_exceptions import ClientConnectorError
+from aiohttp.client_exceptions import ClientConnectorError, ClientPayloadError
 import asyncio
 from PIL import Image
 
@@ -93,13 +93,16 @@ async def download_src(u: str):
             try:
                 async with session.get(u, headers=headers) as response:
                     if response.status == 200:
-                        # 保存图片
+                        # downloaded_size = 0
+
                         with open(fp, 'wb') as f:
                             while True:
                                 chunk = await response.content.read(1024)
                                 if not chunk:
                                     break
                                 f.write(chunk)
+                                # downloaded_size += len(chunk)
+
                         print(f'Success: {u}')
                     else:
                         # 记录异常到日志
@@ -109,8 +112,45 @@ async def download_src(u: str):
                 # 记录异常到日志
                 logging.error(u)
                 print(f'Failed: {u}')
+            except ClientPayloadError:
+                # 记录异常到日志
+                logging.error(u)
+                print(f'Failed: {u}')
     else:
         print(f'图片已存在：{fp}')
+
+async def download_src(u: str):
+    fn = u.split('/')[-1]
+    fp = f'{bd_a_img}/{fn}'
+
+    # 第一次请求获取图片
+    async with aiohttp.ClientSession() as session:
+        try:
+            async with session.get(u, headers=headers) as response:
+                if response.status == 200:
+                    # downloaded_size = 0
+
+                    with open(fp, 'wb') as f:
+                        while True:
+                            chunk = await response.content.read(1024)
+                            if not chunk:
+                                break
+                            f.write(chunk)
+                            # downloaded_size += len(chunk)
+
+                    print(f'Success: {u}')
+                else:
+                    # 记录异常到日志
+                    logging.error(u)
+                    print(f'Failed: {u}')
+        except ClientConnectorError:
+            # 记录异常到日志
+            logging.error(u)
+            print(f'Failed: {u}')
+        except ClientPayloadError:
+            # 记录异常到日志
+            logging.error(u)
+            print(f'Failed: {u}')
 
 
 def is_image_broken(image_path):
