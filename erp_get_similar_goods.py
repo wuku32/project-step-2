@@ -48,7 +48,7 @@ bd_IMG = f'{bd}/{ymd}_{i}'
 os.makedirs(bd, exist_ok=True)
 os.makedirs(bd_IMG, exist_ok=True)
 
-fp_tgt = f'{bd}/{b_d}_tgt.xlsx'
+fp_tgt = f'{g}/{g}_tgt.xlsx'
 ori_df: DataFrame = pd.read_excel(fp_tgt, sheet_name='tgt')
 
 sfs = ['default', 'asc', 'desc', 'cmt', 'newr', 'best']
@@ -74,6 +74,7 @@ for sf in sfs:
                 'imageUrl': item['imageUrl'],
                 'productSku': item['productSku'],
                 'amazon_psku': '',
+                'ASIN': '',
                 'note': '',
                 'productLabelList': item['productLabelList'],
                 'categoryName': item['categoryName'],
@@ -124,14 +125,24 @@ for sf in sfs:
         time.sleep(5)
 
 tgt_df: DataFrame = pd.read_excel(fp_tgt, sheet_name='tgt')
-from util.widgets import note_archived_sku, note_deleted_sku, note_other_sku
+from util.widgets import note_inuse_sku, note_archived_sku, note_deleted_sku, note_recalled_sku, note_other_sku
 
+tgt_df = note_inuse_sku(tgt_df)
 tgt_df = note_archived_sku(tgt_df)
 tgt_df = note_deleted_sku(tgt_df)
+tgt_df = note_recalled_sku(tgt_df)
 tgt_df = note_other_sku(tgt_df)
 
 tgt_df.drop_duplicates(subset=['productSku', 'status'], keep='last', inplace=True)
 tgt_df.loc[tgt_df.duplicated(subset=['productSku']), 'status'] = Status.IN_USE.value
+tgt_df.drop_duplicates(subset=['productSku', 'status'], keep='first', inplace=True)
+tgt_df.loc[tgt_df.duplicated(subset=['productSku']), 'status'] = Status.ARCHIVED.value
+tgt_df.drop_duplicates(subset=['productSku', 'status'], keep='first', inplace=True)
+tgt_df.loc[tgt_df.duplicated(subset=['productSku']), 'status'] = Status.DELETED.value
+tgt_df.drop_duplicates(subset=['productSku', 'status'], keep='first', inplace=True)
+tgt_df.loc[tgt_df.duplicated(subset=['productSku']), 'status'] = Status.RECALLED.value
+tgt_df.drop_duplicates(subset=['productSku', 'status'], keep='first', inplace=True)
+tgt_df.loc[tgt_df.duplicated(subset=['productSku']), 'status'] = Status.OTHER.value
 tgt_df.drop_duplicates(subset=['productSku', 'status'], keep='first', inplace=True)
 with pd.ExcelWriter(fp_tgt) as writer:
     tgt_df.to_excel(writer, index=False, sheet_name='tgt')

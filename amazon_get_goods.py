@@ -203,6 +203,7 @@ for c, (sf, qty) in enumerate(sfs.items()):
 
         time.sleep(pause_time * 2)
         good = {
+            'ym': ym,
             'ymd': ymd,
             'i': i,
             'from': sf,

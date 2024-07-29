@@ -10,9 +10,18 @@ from openpyxl import load_workbook
 class Status(Enum):
     UNUSED = 'Unused'  # 表示数据行从未被使用过
     IN_USE = 'InUse'  # 表示数据行当前正在被使用
-    ARCHIVED = 'Archived'  # 表示数据行已经不再使用，但保留以备历史查询
+    ARCHIVED = 'Archived'  # 表示数据行暂时无法使用，但保留以备历史查询
     DELETED = 'Deleted'  # 表示数据行已被标记为删除，但可能还没有从数据库中物理删除
+    RECALLED = 'Recalled'  # 表示sku没有出单，召回
     OTHER = 'Other'  # 表示数据行已被已经挑选上，但是由于其他原因（如主图底色不是白色而弃选）最终放弃
+
+
+def note_inuse_sku(df: DataFrame) -> DataFrame:
+    # 已下架的sku
+    inuse_skus = open('./util/skus/archived_skus.txt', mode='r', encoding='utf-8').readlines()
+    inuse_skus = [i.strip() for i in inuse_skus]
+    df.loc[df['productSku'].isin(inuse_skus), 'status'] = Status.IN_USE.value
+    return df
 
 
 def note_archived_sku(df: DataFrame) -> DataFrame:
@@ -28,6 +37,14 @@ def note_deleted_sku(df: DataFrame) -> DataFrame:
     deleted_skus = open('./util/skus/deleted_skus.txt', mode='r', encoding='utf-8').readlines()
     deleted_skus = [i.strip() for i in deleted_skus]
     df.loc[df['productSku'].isin(deleted_skus), 'status'] = Status.DELETED.value
+    return df
+
+
+def note_recalled_sku(df: DataFrame) -> DataFrame:
+    # 已下架的sku
+    recalled_skus = open('./util/skus/other_skus.txt', mode='r', encoding='utf-8').readlines()
+    recalled_skus = [i.strip() for i in recalled_skus]
+    df.loc[df['productSku'].isin(recalled_skus), 'status'] = Status.RECALLED.value
     return df
 
 
