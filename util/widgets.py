@@ -141,7 +141,7 @@ def generate_ymd(delta: int = 0):
 def generate_ymd_HMS():
     import time
 
-    ymd_HMS = time.strftime('%Y-%m-%D %H:%M:%S', time.localtime())
+    ymd_HMS = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime())
     return ymd_HMS
 
 
