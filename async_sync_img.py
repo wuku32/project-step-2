@@ -59,8 +59,9 @@ src_unique_df['fn'] = src_unique_df[0].apply(lambda i: i.rsplit('/', 1)[-1])
 
 import logging
 import aiohttp
-from aiohttp.client_exceptions import ClientConnectorError, ClientPayloadError
+from aiohttp.client_exceptions import ClientConnectorError, ClientPayloadError, ClientOSError
 import asyncio
+from asyncio.exceptions import TimeoutError
 from PIL import Image
 
 # 设置日志
@@ -82,18 +83,32 @@ headers = {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36'
 }
 
+black_list = [
+    'http://audio.ser.ltd:28099',
+    'http://mp3.ser.ltd:28099',
+]
 
-async def download_src(u: str):
+
+async def download_src_01(u: str):
+    for bl in black_list:
+        if u.startswith(bl):
+            # 记录异常到日志
+            logging.error(u)
+            print(f'Failed: {u}')
+            return
+
     fn = u.split('/')[-1]
     fp = f'{bd_a_img}/{fn}'
 
     if not os.path.exists(fp) or (os.path.exists(fp) and is_image_broken(fp)):
+        # # 设置请求超时
+        # timeout = aiohttp.ClientTimeout(total=5)  # 增加超时时间
         # 第一次请求获取图片
         async with aiohttp.ClientSession() as session:
             try:
                 async with session.get(u, headers=headers) as response:
                     if response.status == 200:
-                        # downloaded_size = 0
+                        downloaded_size = 0
 
                         with open(fp, 'wb') as f:
                             while True:
@@ -101,56 +116,62 @@ async def download_src(u: str):
                                 if not chunk:
                                     break
                                 f.write(chunk)
-                                # downloaded_size += len(chunk)
+                                downloaded_size += len(chunk)
 
                         print(f'Success: {u}')
                     else:
                         # 记录异常到日志
                         logging.error(u)
                         print(f'Failed: {u}')
-            except ClientConnectorError:
+            except (ClientConnectorError, ClientPayloadError, ClientOSError):
                 # 记录异常到日志
                 logging.error(u)
                 print(f'Failed: {u}')
-            except ClientPayloadError:
+            except TimeoutError:
                 # 记录异常到日志
                 logging.error(u)
                 print(f'Failed: {u}')
     else:
         print(f'图片已存在：{fp}')
 
-async def download_src(u: str):
+
+async def download_src_02(u: str):
     fn = u.split('/')[-1]
     fp = f'{bd_a_img}/{fn}'
 
-    # 第一次请求获取图片
-    async with aiohttp.ClientSession() as session:
-        try:
-            async with session.get(u, headers=headers) as response:
-                if response.status == 200:
-                    # downloaded_size = 0
+    if not os.path.exists(fp) or (os.path.exists(fp) and is_image_broken(fp)):
+        # # 设置请求超时
+        # timeout = aiohttp.ClientTimeout(total=5)  # 增加超时时间
+        # 第一次请求获取图片
+        async with aiohttp.ClientSession() as session:
+            try:
+                async with session.get(u, headers=headers) as response:
+                    if response.status == 200:
+                        downloaded_size = 0
 
-                    with open(fp, 'wb') as f:
-                        while True:
-                            chunk = await response.content.read(1024)
-                            if not chunk:
-                                break
-                            f.write(chunk)
-                            # downloaded_size += len(chunk)
+                        with open(fp, 'wb') as f:
+                            while True:
+                                chunk = await response.content.read(1024)
+                                if not chunk:
+                                    break
+                                f.write(chunk)
+                                downloaded_size += len(chunk)
 
-                    print(f'Success: {u}')
-                else:
-                    # 记录异常到日志
-                    logging.error(u)
-                    print(f'Failed: {u}')
-        except ClientConnectorError:
-            # 记录异常到日志
-            logging.error(u)
-            print(f'Failed: {u}')
-        except ClientPayloadError:
-            # 记录异常到日志
-            logging.error(u)
-            print(f'Failed: {u}')
+                        print(f'Success: {u}')
+                    else:
+                        # 记录异常到日志
+                        logging.error(u)
+                        print(f'Failed: {u}')
+            except (ClientConnectorError, ClientPayloadError, ClientOSError):
+                # 记录异常到日志
+                logging.error(u)
+                print(f'Failed: {u}')
+            except TimeoutError:
+                # 记录异常到日志
+                logging.error(u)
+                print(f'Failed: {u}')
+    else:
+        print(f'图片已存在：{fp}')
 
 
 def is_image_broken(image_path):
@@ -170,18 +191,32 @@ def is_image_broken(image_path):
 MIN_REQUEST_DELAY = 0
 
 
-async def main_01():
-    tasks = []
+async def main_01(max_concurrency=50):
     urls = src_unique_df[0].values
-    for url in urls:
-        # 添加任务到列表
-        task = asyncio.create_task(download_src(url))
-        tasks.append(task)
-        # 异步等待，以确保每次请求之间有足够的延迟
-        await asyncio.sleep(MIN_REQUEST_DELAY)
 
-    # 等待所有任务完成
-    await asyncio.gather(*tasks)
+    # 使用concurrent.futures来限制并发任务的数量
+    semaphore = asyncio.Semaphore(max_concurrency)
+
+    async def bounded_task(url):
+        async with semaphore:
+            await download_src_01(url)
+
+    tasks = [bounded_task(url) for url in urls]
+
+    # 使用as_completed来获取已完成的任务
+    for future in asyncio.as_completed(tasks):
+        await future
+
+    # tasks = []
+    # for url in urls:
+    #     # 添加任务到列表
+    #     task = asyncio.create_task(download_src(url))
+    #     tasks.append(task)
+    #     # 异步等待，以确保每次请求之间有足够的延迟
+    #     await asyncio.sleep(MIN_REQUEST_DELAY)
+    #
+    # # 等待所有任务完成
+    # await asyncio.gather(*tasks)
 
 
 async def main_02():
@@ -190,7 +225,7 @@ async def main_02():
     for url in urls:
         url = re.sub(r'http://.*?/', 'http://183.62.143.166:28099/', url)
         # 添加任务到列表
-        task = asyncio.create_task(download_src(url))
+        task = asyncio.create_task(download_src_02(url))
         tasks.append(task)
         # 异步等待，以确保每次请求之间有足够的延迟
         await asyncio.sleep(MIN_REQUEST_DELAY)
@@ -201,6 +236,29 @@ async def main_02():
 
 # 运行异步任务
 asyncio.run(main_01())
-asyncio.run(main_02())
+# asyncio.run(main_02())
 
 print(f"共需下载{len(src_unique_df['fn'].unique())}张图片")
+
+with open(fp_log, 'r') as f:
+    urls = set(url.strip() for url in f.readlines())
+
+from requests.exceptions import ConnectionError, ConnectTimeout
+
+for u in urls:
+    fn = u.split('/')[-1]
+    fp = f'{bd_a_img}/{fn}'
+    for bl in black_list:
+        if u.startswith(bl):
+            u = re.sub(r'http://.*?/', 'http://183.62.143.166:28099/', u)
+            break
+    try:
+        response = requests.get(u)
+        with open(fp, 'wb') as f:
+            f.write(response.content)
+            print(f'Success: {u}')
+    except (ConnectionError, ConnectTimeout):
+        # 记录异常到日志
+        logging.error(u)
+        print(f'Failed: {u}')
+        print(f'Failed AGAIN!!!{u}')
